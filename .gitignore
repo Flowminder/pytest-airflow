@@ -1,0 +1,5 @@
+# python scaffolding
+__pycache__/
+.eggs/
+*.egg-info/
+*.egg/
