@@ -138,7 +138,7 @@ def _task_gen(item, **kwds):
         provide_context=True,
         dag=dag,
     )
-    dag.set_dependency(task_id, "__pytest_branch")
+    dag.set_dependency("__pytest_branch", task_id)
     return task
 
 
