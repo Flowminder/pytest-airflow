@@ -14,7 +14,7 @@ def dag(request):
 
     if request.config.option.airflow:
 
-        if hasattr(request.config.option, "dag_id"):
+        if hasattr(request.config.option, "dag_id") and request.config.option.dag_id:
             dag_id = request.config.option.dag_id
         else:
             dag_id = "pytest"
@@ -36,7 +36,9 @@ def pytest_addoption(parser):
 @pytest.hookimpl(hookwrapper=True)
 def pytest_collection_modifyitems(session, config, items):
     outcome = yield
-    if session.config.option.airflow:
+    # TODO: we should return an empty DAG when no items selected for now we
+    # just return None
+    if session.config.option.airflow and len(items) > 0:
         dag = items[0]._request.getfixturevalue("dag")
         branch = BranchPythonOperator(
             task_id="__pytest_branch",
