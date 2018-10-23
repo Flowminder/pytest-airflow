@@ -10,7 +10,5 @@ setup(
     pachages=find_packages(exclude=["test"]),
     python_requires=">=3.5",
     install_requires=["pytest>=3.0.0"],
-    entry_points={
-        "pytest11": ["airflow=pytest_airflow.plugin"]
-    }
+    entry_points={"pytest11": ["airflow=pytest_airflow.plugin"]},
 )

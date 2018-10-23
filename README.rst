@@ -16,7 +16,7 @@ Usage
 -----
 
 When running pytest from the command line, the plugin will construct and run
-the test DAG, with:
+the test DAG (running the DAG from CLI is NOT IMPLEMENTED), with:
 
 
 .. code-block:: bash

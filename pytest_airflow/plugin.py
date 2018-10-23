@@ -7,6 +7,7 @@ import _pytest.runner as runner
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
 
+
 @pytest.fixture(scope="session")
 def dag(request):
     """Return the DAG for the current session."""
@@ -19,26 +20,18 @@ def dag(request):
             dag_id = "pytest"
 
         # TODO: allow user to define this
-        args = {
-            "owner": "airflow",
-            "start_date": datetime.datetime(2018, 1, 1)
-        }
+        args = {"owner": "airflow", "start_date": datetime.datetime(2018, 1, 1)}
 
         dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=args)
 
         return dag
 
+
 def pytest_addoption(parser):
     group = parser.getgroup("airflow")
-    group.addoption(
-        "--airflow",
-        action="store_true",
-        help="run tests with airflow."
-    )
-    group.addoption(
-        "--dag-id",
-        help="set the airflow dag id name."
-    )
+    group.addoption("--airflow", action="store_true", help="run tests with airflow.")
+    group.addoption("--dag-id", help="set the airflow dag id name.")
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_collection_modifyitems(session, config, items):
@@ -47,14 +40,14 @@ def pytest_collection_modifyitems(session, config, items):
         dag = items[0]._request.getfixturevalue("dag")
         branch = BranchPythonOperator(
             task_id="__pytest_branch",
-            python_callable= lambda: __pytest_branch_callable(items),
+            python_callable=lambda: __pytest_branch_callable(items),
             provide_context=True,
-            dag=dag
+            dag=dag,
         )
         dag << branch
 
-def __pytest_branch_callable(items):
 
+def __pytest_branch_callable(items):
     def __callable(**kwargs):
 
         tasks = []
@@ -74,11 +67,14 @@ def __pytest_branch_callable(items):
 
     return __callable
 
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_cmdline_main(config):
     config._dag = None
     outcome = yield
     print(config._dag.tree_view())
+    return config._dag
+
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item, nextitem):
@@ -88,6 +84,7 @@ def pytest_runtest_protocol(item, nextitem):
         runtestprotocol(item, nextitem=nextitem)
         item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
         return True
+
 
 def runtestprotocol(item, log=True, nextitem=None):
     hasrequest = hasattr(item, "_request")
@@ -110,6 +107,7 @@ def runtestprotocol(item, log=True, nextitem=None):
         item.funcargs = None
     return reports
 
+
 def create_airflow_task(item, when, log=True, **kwds):
 
     call = runner.CallInfo(
@@ -125,19 +123,21 @@ def create_airflow_task(item, when, log=True, **kwds):
         hook.pytest_exception_interact(node=item, call=call, report=report)
     return report
 
+
 def _task_gen(item, **kwds):
     runner._update_current_test_var(item, "call")
     dag = item._request.getfixturevalue("dag")
     ihook = getattr(item.ihook, "pytest_runtest_call")
     task_id = _gen_task_id(item)
     task = PythonOperator(
-        task_id= task_id,
-        python_callable = lambda: ihook(item=item, **kwds),
-        provide_context = True,
+        task_id=task_id,
+        python_callable=lambda: ihook(item=item, **kwds),
+        provide_context=True,
         dag=dag,
     )
     dag.set_dependency(task_id, "__pytest_branch")
     return task
+
 
 def _gen_task_id(item):
     return item.nodeid.replace("/", "__").replace("::", "___")
