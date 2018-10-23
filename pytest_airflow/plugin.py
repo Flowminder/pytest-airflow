@@ -14,8 +14,8 @@ def dag(request):
 
     if request.config.option.airflow:
 
-        if hasattr(request.config, "dag_id"):
-            dag_id = request.config.dag_id
+        if hasattr(request.config.option, "dag_id"):
+            dag_id = request.config.option.dag_id
         else:
             dag_id = "pytest"
 
