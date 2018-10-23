@@ -74,7 +74,7 @@ def pytest_cmdline_main(config):
     outcome = yield
     if config._dag:
         print(config._dag.tree_view())
-        return config._dag
+        outcome.force_result(config._dag)
 
 
 @pytest.hookimpl(tryfirst=True)
