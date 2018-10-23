@@ -72,8 +72,9 @@ def __pytest_branch_callable(items):
 def pytest_cmdline_main(config):
     config._dag = None
     outcome = yield
-    print(config._dag.tree_view())
-    return config._dag
+    if config._dag:
+        print(config._dag.tree_view())
+        return config._dag
 
 
 @pytest.hookimpl(tryfirst=True)
