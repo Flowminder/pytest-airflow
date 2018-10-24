@@ -70,7 +70,6 @@ def pytest_collection_modifyitems(session, config, items):
             provide_context=True,
             dag=dag,
         )
-        dag << branch
 
 
 def __pytest_branch_callable(items):
@@ -158,7 +157,7 @@ def _task_gen(item, **kwds):
     task_id = _gen_task_id(item)
     task = PythonOperator(
         task_id=task_id,
-        python_callable=lambda: ihook(item=item, **kwds),
+        python_callable=lambda **kwargs: ihook(item=item, **kwds, **kwargs),
         provide_context=True,
         dag=dag,
     )
