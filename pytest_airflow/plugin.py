@@ -5,7 +5,31 @@ import pytest
 import _pytest.runner as runner
 
 from airflow import DAG
-from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
+from airflow.operators.python_operator import (
+    PythonOperator,
+    BranchPythonOperator,
+    SkipMixin,
+)
+
+
+class MultiBranchPythonOperator(PythonOperator, SkipMixin):
+    """
+    Follow Multiple Branches...
+    """
+
+    def execute(self, context):
+        branch = super(MultiBranchPythonOperator, self).execute(context)
+        self.log.info("Following branch %s", branch)
+        self.log.info("Marking other directly downstream tasks as skipped")
+
+        downstream_tasks = context["task"].downstream_list
+        self.log.debug("Downstream task_ids %s", downstream_tasks)
+
+        skip_tasks = [t for t in downstream_tasks if t.task_id not in branch]
+        if downstream_tasks:
+            self.skip(context["dag_run"], context["ti"].execution_date, skip_tasks)
+
+        self.log.info("Done.")
 
 
 @pytest.fixture(scope="session")
@@ -40,9 +64,9 @@ def pytest_collection_modifyitems(session, config, items):
     # just return None
     if session.config.option.airflow and len(items) > 0:
         dag = items[0]._request.getfixturevalue("dag")
-        branch = BranchPythonOperator(
+        branch = MultiBranchPythonOperator(
             task_id="__pytest_branch",
-            python_callable=lambda: __pytest_branch_callable(items),
+            python_callable=__pytest_branch_callable(items),
             provide_context=True,
             dag=dag,
         )
@@ -54,16 +78,16 @@ def __pytest_branch_callable(items):
 
         tasks = []
 
-        if kwargs["dag_run"].conf["markers"]:
-            markers = kwargs["dag_run"]["markers"]
-            for item in items:
-                for m in markers:
-                    if item.get_marker(m):
-                        tasks.append(_gen_task_id(item))
-                        break
-        else:
-            for item in items:
-                tasks.append(_gen_task_id(item))
+        # if kwargs["dag_run"].conf["markers"]:
+        #     markers = kwargs["dag_run"]["markers"]
+        #     for item in items:
+        #         for m in markers:
+        #             if item.get_marker(m):
+        #                 tasks.append(_gen_task_id(item))
+        #                 break
+        # else:
+        for item in items:
+            tasks.append(_gen_task_id(item))
 
         return tasks
 
