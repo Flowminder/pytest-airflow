@@ -1,9 +1,10 @@
 """pytest-airflow implementation."""
+import sys
 import datetime
 import inspect
 
 import pytest
-import _pytest.runner as runner
+from _pytest._code.code import ExceptionInfo
 
 from airflow import DAG
 from airflow.operators.python_operator import (
@@ -32,9 +33,15 @@ class MultiBranchPythonOperator(PythonOperator, SkipMixin):
 
         self.log.info("Done.")
 
+@pytest.fixture(scope="session")
+def dag_default_args(request):
+    return {
+        "owner": "airflow",
+        "start_date": datetime.datetime(2018, 1, 1)
+    }
 
 @pytest.fixture(scope="session")
-def dag(request):
+def dag(request, dag_default_args):
     """Return the DAG for the current session."""
 
     if request.config.option.airflow:
@@ -44,13 +51,8 @@ def dag(request):
         else:
             dag_id = "pytest"
 
-        # TODO: allow user to define this
-        args = {
-            "owner": "airflow", 
-            "start_date": datetime.datetime(2018, 1, 1)
-        }
 
-        dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=args)
+        dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
 
         return dag
 
@@ -118,33 +120,59 @@ def pytest_pyfunc_call(pyfuncitem):
         if pyfuncitem._isyieldedfunction():
             task = PythonOperator(
                 task_id=task_id,
-                python_callable=lambda **kwargs: testfunction(*pyfuncitem._args),
+                python_callable=_task_callable(testfunction, *pyfuncitem._args),
                 provide_context=True,
                 dag=dag,
             )
         else:
             funcargs = pyfuncitem.funcargs
-            testargs = {}
+            testkwargs = {}
             for arg in pyfuncitem._fixtureinfo.argnames:
-                if arg != "dag":
-                    testargs[arg] = funcargs[arg]
-            print(testargs)
-            print(inspect.signature(testfunction))
+                if not arg in ("dag", "dag_default_args"):
+                    testkwargs[arg] = funcargs[arg]
             task = PythonOperator(
                 task_id=task_id,
-                python_callable=_task_callable(testfunction, **testargs),
+                python_callable=_task_callable(testfunction, **testkwargs),
                 provide_context=True,
                 dag=dag,
             )
         dag.set_dependency("__pytest_branch", task_id)
         return True
 
-def _task_callable(testfunction, **testargs):
+def _task_callable(testfunction, *testargs, **testkwargs):
 
     def _callable(**kwargs):
-        if "task_ctx" in testargs:
-            testargs["task_ctx"] = kwargs
-        return testfunction(**testargs)
+        if "task_ctx" in testkwargs:
+            testkwargs["task_ctx"] = kwargs
+
+        excinfo = None
+        sys.last_type, sys.last_value, sys.last_traceback = (None, None, None)
+
+        try:
+            if len(testargs) > 0:
+                testfunction(*testargs)
+            else:
+                testfunction(**testkwargs)
+        except:
+            # Store trace info to allow postmortem debugging
+            type, value, tb = sys.exc_info()
+            tb = tb.tb_next  # Skip *this* frame
+            sys.last_type = type
+            sys.last_value = value
+            sys.last_traceback = tb
+            del type, value, tb  # Get rid of these in this frame
+            excinfo = ExceptionInfo()
+
+        if not excinfo:
+            kwargs["ti"].xcom_push("outcome", "passed")
+            kwargs["ti"].xcom_push("longrepr", None)
+        else:
+            kwargs["ti"].xcom_push("outcome", "failed")
+            kwargs["ti"].xcom_push("longrepr", excinfo.getrepr(style="short"))
+
+        if excinfo:
+            raise excinfo.value
+
 
     return _callable
 
