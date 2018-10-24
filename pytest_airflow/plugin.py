@@ -1,6 +1,7 @@
 """pytest-airflow implementation."""
 import sys
 import datetime
+import logging
 import inspect
 
 import pytest
@@ -33,12 +34,11 @@ class MultiBranchPythonOperator(PythonOperator, SkipMixin):
 
         self.log.info("Done.")
 
+
 @pytest.fixture(scope="session")
 def dag_default_args(request):
-    return {
-        "owner": "airflow",
-        "start_date": datetime.datetime(2018, 1, 1)
-    }
+    return {"owner": "airflow", "start_date": datetime.datetime(2018, 1, 1)}
+
 
 @pytest.fixture(scope="session")
 def dag(request, dag_default_args):
@@ -51,14 +51,15 @@ def dag(request, dag_default_args):
         else:
             dag_id = "pytest"
 
-
         dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
 
         return dag
 
+
 @pytest.fixture(autouse=True)
 def task_ctx():
     return {}
+
 
 def pytest_addoption(parser):
     group = parser.getgroup("airflow")
@@ -78,6 +79,13 @@ def pytest_collection_modifyitems(session, config, items):
             task_id="__pytest_branch",
             python_callable=__pytest_branch_callable(items),
             provide_context=True,
+            dag=dag,
+        )
+        report = PythonOperator(
+            task_id="__pytest_report",
+            python_callable=__pytest_report,
+            provide_context=True,
+            trigger_rule="all_done",
             dag=dag,
         )
 
@@ -103,6 +111,19 @@ def __pytest_branch_callable(items):
     return __callable
 
 
+def __pytest_report(**kwargs):
+
+    # for now we just log results
+    logging.info("Test results")
+
+    for task in kwargs["task"].upstream_list:
+        outcome = kwargs["ti"].xcom_pull(task.task_id, key="outcome")
+        longrepr = kwargs["ti"].xcom_pull(task.task_id, key="longrepr")
+        logging.info(f"{task.task_id}: {outcome}")
+        if longrepr:
+            logging.info(longrepr)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_cmdline_main(config):
     config._dag = None
@@ -110,6 +131,7 @@ def pytest_cmdline_main(config):
     if config._dag:
         print(config._dag.tree_view())
         outcome.force_result(config._dag)
+
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
@@ -137,10 +159,11 @@ def pytest_pyfunc_call(pyfuncitem):
                 dag=dag,
             )
         dag.set_dependency("__pytest_branch", task_id)
+        dag.set_dependency(task_id, "__pytest_report")
         return True
 
-def _task_callable(testfunction, *testargs, **testkwargs):
 
+def _task_callable(testfunction, *testargs, **testkwargs):
     def _callable(**kwargs):
         if "task_ctx" in testkwargs:
             testkwargs["task_ctx"] = kwargs
@@ -173,18 +196,12 @@ def _task_callable(testfunction, *testargs, **testkwargs):
         if excinfo:
             raise excinfo.value
 
-
     return _callable
 
+
 def _gen_task_id(item):
-    replacements = {
-        "/": "..",
-        "::": "-",
-        "[" : "-",
-        "]": "",
-    }
+    replacements = {"/": "..", "::": "-", "[": "-", "]": ""}
     id = item.nodeid
     for k, v in replacements.items():
         id = id.replace(k, v)
     return id
-
