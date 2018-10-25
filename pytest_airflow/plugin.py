@@ -15,6 +15,26 @@ from airflow.operators.python_operator import (
 )
 
 
+class MultiBranchPythonOperator(PythonOperator, SkipMixin):
+    """
+    Follow multiple branches
+    """
+
+    def execute(self, context):
+        branch = super(MultiBranchPythonOperator, self).execute(context)
+        self.log.info("Following branch %s", branch)
+        self.log.info("Marking other directly downstream tasks as skipped")
+
+        downstream_tasks = context["task"].downstream_list
+        self.log.debug("Downstream task_ids %s", downstream_tasks)
+
+        skip_tasks = [t for t in downstream_tasks if t.task_id not in branch]
+        if downstream_tasks:
+            self.skip(context["dag_run"], context["ti"].execution_date, skip_tasks)
+
+        self.log.info("Done.")
+
+
 @pytest.fixture(scope="session")
 def dag_default_args(request):
     return {"owner": "airflow", "start_date": datetime.datetime(2018, 1, 1)}
@@ -54,8 +74,9 @@ def pytest_collection_modifyitems(session, config, items):
     # just return None
     if session.config.option.airflow and len(items) > 0:
         dag = items[0]._request.getfixturevalue("dag")
+        logging.info(dag)
         session.config._dag = dag
-        branch = BranchPythonOperator(
+        branch = MultiBranchPythonOperator(
             task_id="__pytest_branch",
             python_callable=__pytest_branch_callable(items),
             provide_context=True,
@@ -110,7 +131,10 @@ def pytest_cmdline_main(config):
     outcome = yield
     if config._dag:
         print(config._dag.tree_view())
+        logging.info(config._dag)
         outcome.force_result(config._dag)
+    else:
+        print("Didn't get  dag")
 
 
 @pytest.hookimpl(tryfirst=True)
