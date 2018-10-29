@@ -1,11 +1,15 @@
 """pytest-airflow implementation."""
 import sys
+import six
 import datetime
+import functools
 import logging
 import inspect
 
 import pytest
+import _pytest.fixtures as fixtures
 from _pytest._code.code import ExceptionInfo
+from _pytest.outcomes import TEST_OUTCOME
 
 from airflow import DAG
 from airflow.operators.python_operator import (
@@ -37,7 +41,11 @@ class MultiBranchPythonOperator(PythonOperator, SkipMixin):
 
 @pytest.fixture(scope="session")
 def dag_default_args(request):
-    return {"owner": "airflow", "start_date": datetime.datetime(2018, 1, 1)}
+    return {
+        "owner": "airflow",
+        "start_date": datetime.datetime(2018, 1, 1),
+        "depends_on_past": False,
+    }
 
 
 @pytest.fixture(scope="session")
@@ -130,23 +138,111 @@ def pytest_cmdline_main(config):
     config._dag = None
     outcome = yield
     if config._dag:
-        print(config._dag.tree_view())
+        logging.info(config._dag.tree_view())
         logging.info(config._dag)
         outcome.force_result(config._dag)
     else:
-        print("Didn't get  dag")
+        logging.info("Didn't get  dag")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_fixture_setup(fixturedef, request):
+    if fixturedef._fixturemanager.config.option.airflow and _defer(fixturedef, request):
+        logging.info(f"Deferring {fixturedef.argname}.")
+        kwargs = {}
+        for argname in fixturedef.argnames:
+            fixdef = request._get_active_fixturedef(argname)
+            result, arg_cache_key, exc = fixdef.cached_result
+            request._check_scope(argname, request.scope, fixdef.scope)
+            kwargs[argname] = result
+
+        my_cache_key = request.param_index
+        deferred_call = DeferredCall(fixturedef, request, kwargs)
+        fixturedef.cached_result = (deferred_call, my_cache_key, None)
+        return deferred_call
+
+
+class DeferredCall:
+    def __init__(self, fixturedef, request, kwargs):
+        self.fixturefunc = fixtures.resolve_fixture_function(fixturedef, request)
+        self.kwargs = kwargs
+        self.argname = fixturedef.argname
+        self._finalizers = fixturedef._finalizers.copy()
+        fixturedef._finalizers = []
+        self._cached = False
+        self._res = None
+
+    def execute(self):
+
+        if not self._cached:
+
+            logging.info(f"Executing the deferred call for {self.argname}")
+
+            for k, arg in self.kwargs.items():
+                if isinstance(arg, DeferredCall):
+                    self.kwargs[k] = arg.execute()
+
+            yieldctx = fixtures.is_generator(self.fixturefunc)
+            try:
+                if yieldctx:
+                    it = self.fixturefunc(**self.kwargs)
+                    self._res = next(it)
+                    finalizer = functools.partial(
+                        fixtures._teardown_yield_fixture, self.fixturefunc, it
+                    )
+                    self._finalizers.append(finalizer)
+                else:
+                    self._res = self.fixturefunc(**self.kwargs)
+            except TEST_OUTCOME:
+                raise
+
+            self._cached = True
+
+        return self._res
+
+    def finish(self):
+        logging.info(f"Executing the deferred teardown for {self.argname}")
+        exceptions = []
+        try:
+            while self._finalizers:
+                try:
+                    func = self._finalizers.pop()
+                    func()
+                except:
+                    exceptions.append(sys.exc_info())
+            if exceptions:
+                e = exceptions[0]
+                del exceptions
+                six.reraise(*e)
+        finally:
+            self._finalizers = []
+
+
+def _defer(fixturedef, request):
+    if isinstance(fixturedef, fixtures.PseudoFixtureDef):
+        return False
+    if fixturedef.argname.startswith("defer"):
+        return True
+    for argname in fixturedef.argnames:
+        if argname.startswith("defer"):
+            return True
+            break
+        fixdef = request._get_active_fixturedef(argname)
+        if _defer(fixdef, request):
+            return True
+            break
+    return False
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
     if pyfuncitem.session.config.option.airflow:
-        testfunction = pyfuncitem.obj
         dag = pyfuncitem._request.getfixturevalue("dag")
         task_id = _gen_task_id(pyfuncitem)
         if pyfuncitem._isyieldedfunction():
             task = PythonOperator(
                 task_id=task_id,
-                python_callable=_task_callable(testfunction, *pyfuncitem._args),
+                python_callable=_task_callable(pyfuncitem, *pyfuncitem._args),
                 provide_context=True,
                 dag=dag,
             )
@@ -158,7 +254,7 @@ def pytest_pyfunc_call(pyfuncitem):
                     testkwargs[arg] = funcargs[arg]
             task = PythonOperator(
                 task_id=task_id,
-                python_callable=_task_callable(testfunction, **testkwargs),
+                python_callable=_task_callable(pyfuncitem, **testkwargs),
                 provide_context=True,
                 dag=dag,
             )
@@ -167,13 +263,23 @@ def pytest_pyfunc_call(pyfuncitem):
         return True
 
 
-def _task_callable(testfunction, *testargs, **testkwargs):
+def _task_callable(pyfuncitem, *testargs, **testkwargs):
     def _callable(**kwargs):
         if "task_ctx" in testkwargs:
             testkwargs["task_ctx"] = kwargs
 
+        finalizers = []
+        for k, arg in testkwargs.items():
+            if isinstance(arg, DeferredCall):
+                testkwargs[k] = arg.execute()
+                finalizers.append(arg.finish)
+
         excinfo = None
         sys.last_type, sys.last_value, sys.last_traceback = (None, None, None)
+
+        testfunction = pyfuncitem.obj
+
+        exceptions = []
 
         try:
             if len(testargs) > 0:
@@ -188,17 +294,35 @@ def _task_callable(testfunction, *testargs, **testkwargs):
             sys.last_value = value
             sys.last_traceback = tb
             del type, value, tb  # Get rid of these in this frame
-            excinfo = ExceptionInfo()
+            exceptions.append(ExceptionInfo())
 
-        if not excinfo:
+        if exceptions:
+            kwargs["ti"].xcom_push("outcome", "failed")
+            kwargs["ti"].xcom_push("longrepr", exceptions[0].getrepr(style="short"))
+        else:
             kwargs["ti"].xcom_push("outcome", "passed")
             kwargs["ti"].xcom_push("longrepr", None)
-        else:
-            kwargs["ti"].xcom_push("outcome", "failed")
-            kwargs["ti"].xcom_push("longrepr", excinfo.getrepr(style="short"))
 
-        if excinfo:
-            raise excinfo.value
+        if hasattr(pyfuncitem, "teardown"):
+            finalizers.append(pyfuncitem.teardown)
+
+        try:
+            while finalizers:
+                try:
+                    func = finalizers.pop()
+                    func()
+                except:
+                    exceptions.append(sys.exc_info())
+        except:
+            pass
+
+        if exceptions:
+            e = exceptions[0]
+            del exceptions
+            if isinstance(e, ExceptionInfo):
+                six.reraise(e.type, e.value, e.tb)
+            else:
+                six.reraise(*e)
 
     return _callable
 
