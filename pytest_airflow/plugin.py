@@ -45,7 +45,7 @@ def pytest_cmdline_main(config):
 #
 # FIXTURES
 # --------
-# Plugin fixtures.
+# Fallback plugin fixtures.
 #
 
 @pytest.fixture(autouse=True)
@@ -54,13 +54,8 @@ def task_ctx():
     test is executed in Airflow. """
     return {}
 
-#
-# DEFAULTS
-# --------
-# Fallbacks for when the required DAG fixtures have not been defined.
-#
-
-def _dag_default_args():
+@pytest.fixture(scope="session")
+def dag_default_args():
     """ Return the default_args for a generic Airflow DAG. """
     return { "owner": "airflow",
         "start_date": datetime.datetime(2018, 1, 1),
@@ -68,16 +63,16 @@ def _dag_default_args():
         "depends_on_past": False,
     }
 
-
-def _dag(config, dag_default_args):
+@pytest.fixture(scope="session")
+def dag(request, dag_default_args):
     """ Returns the default DAG according to the session configuration and the
     dag_default_args.  """
-    dag_id = getattr(config.option, "dag_id") or "pytest"
+    dag_id = getattr(request.config.option, "dag_id") or "pytest"
     dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
     return dag
 
-
-def _dag_report(**kwargs):
+@pytest.fixture(scope="session")
+def dag_report(**kwargs):
     """ The default callable for the report task. """
 
     logging.info("Test results")
@@ -119,15 +114,9 @@ def pytest_collection_modifyitems(session, config, items):
             dag=dag,
         )
 
-        # retrieve the dag_report_callable, which can be defined by the user as
-        # fixture.
-        dag_report_fix = _get_fixture("dag_report", session)
-        if dag_report_fix:
-            dag_report_callable = dag_report_fix.func
-        else:
-            dag_report_callable = _dag_report
-
         # the sink task, that perfoms test reporting.
+        dag_report_callable = _get_fixture("dag_report", session).func
+
         report = PythonOperator(
             task_id="__pytest_report",
             python_callable=dag_report_callable,
@@ -150,15 +139,13 @@ def _init_dag(session):
     dag_default_args_fix = _get_fixture("dag_default_args", session)
     dag_fix = _get_fixture("dag", session)
 
-    if not dag_default_args_fix:
-        default_args = _dag_default_args()
-    else:
-        default_args = _compute_fixture_value(dag_default_args_fix, session)
+    dag_default_args = _compute_fixture_value(dag_default_args_fix, session)
+    dag = _compute_fixture_value(dag_fix, session)
 
-    if not dag_fix:
-        dag = _dag(session.config, default_args)
-    else:
-        dag = _compute_fixture_value(dag_fix, session)
+    # we clean up any resources created during dag initialization
+    # in an attempt to not mess up with pytest normals operation
+    session._setupstate._callfinalizers(session)
+    session.items[0]._fixture_defs = {}
 
     return dag
 
@@ -205,9 +192,10 @@ def _compute_fixture_value(fixturedef, session):
     request = session.items[0]._request
     request._compute_fixture_value(fixturedef)
     res = fixturedef.cached_result[0]
-    # we clean up any resources used by this fixturedef
-    session._setupstate._callfinalizers(session)
-
+    # we add the fixturedef to force this fixturedef to be found
+    # this so that for instance our fixture dag will use dag_default_args that
+    # we compute here
+    request._fixture_defs[fixturedef.argname] = fixturedef
     return res
 
 
@@ -387,6 +375,9 @@ class FixtureDeferredCall:
         self.argname = fixturedef.argname
         self._cached = False
         self._res = None
+        # we need to save a pointer to the request to retrive finalizers registered
+        # during execution, it is not enough to save a pointer to the finalizer array
+        self._req = request
         self._finalizers = fixturedef._finalizers.copy()
         # since the fixture has been deferred, we don't actually need or want
         # to perfom any fixture teardown at this point
@@ -419,6 +410,8 @@ class FixtureDeferredCall:
                     self._res = self.fixturefunc(**self.kwargs)
             except TEST_OUTCOME:
                 raise
+            finally:
+                self._finalizers.extend(self._req._fixturedef._finalizers)
 
             self._cached = True
 
@@ -503,10 +496,6 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
         # retrieves the test function
         testfunction = pyfuncitem.obj
 
-        # register any additional finalizers
-        if hasattr(pyfuncitem, "teardown"):
-            finalizers.append(pyfuncitem.teardown)
-
         excinfo = None
         exceptions = []
         sys.last_type, sys.last_value, sys.last_traceback = (None, None, None)
@@ -527,6 +516,9 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
             sys.last_traceback = tb
             del type, value, tb  # Get rid of these in this frame
             exceptions.append(ExceptionInfo())
+
+        for f in pyfuncitem.session._setupstate._finalizers.values():
+            finalizers.extend(f)
 
         # communicate test outcomes to the xcom channel, making it accessible
         # to the reporting task downstream
