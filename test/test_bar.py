@@ -1,9 +1,11 @@
 import pytest
+import datetime
 import logging
 
 
 @pytest.fixture(scope="session")
 def dag_default_args():
+    print('dag_default_args 2')
     yield {
         "owner": "airflow",
         "start_date": datetime.datetime(2017, 1, 1),
@@ -31,13 +33,14 @@ def fix_color(request):
     yield request.param
 
 
-def test_bar_1(fix_func, fix_mod, fix_color, task_ctx):
+def test_bar_1(request, fix_func, fix_mod, fix_color, task_ctx):
+    request.addfinalizer(lambda: logging.info("bulldog"))
     logging.info("bar_1")
     logging.info(fix_func)
     logging.info(fix_mod)
     logging.info(fix_color)
     logging.info(task_ctx)
-    assert 1
+    assert 0
 
 
 def test_bar_2(fix_func, fix_mod, task_ctx):

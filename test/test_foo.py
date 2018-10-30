@@ -12,7 +12,10 @@ def fix_func(defer_fix_bar):
 
 
 @pytest.fixture()
-def defer_fix_bar():
+def defer_fix_bar(request):
+    request.addfinalizer(lambda: logging.info("boo"))
+    logging.info(request)
+    logging.info(request._pyfuncitem.session._setupstate.__dict__)
     logging.info("inside defer_fix_bar")
     x = 1
     yield x
