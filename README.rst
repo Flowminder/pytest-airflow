@@ -30,8 +30,8 @@ return a reference to the DAG.
         dag = pytest.main(["--airflow", "--dag-id", "FOO"])
 
 If the plugin is installed, ``pytest`` will automatically use it. Saving
-the script above in one's DAG folder is enough to trigger the DAG. Note 
-that ``pytest`` will be evaluated from the path where the Airflow 
+the script above in one's DAG folder is enough to trigger the DAG. Note
+that ``pytest`` will be evaluated from the path where the Airflow
 scheduler is invoked.
 
 Plugin
@@ -111,15 +111,15 @@ requirements. The plugin expects the following fixture signature, scoped at the
 DAG Configuration
 ~~~~~~~~~~~~~~~~~
 
-The user can configure the DAG using two reserved fixtures for this. The 
-fixtures must be scoped at the ``session`` level and its location should 
-cover all the collected test items. The most narrow fixture that covers 
-all of the collected items will be selected. Otherwise, the plugin uses 
-default values for those fixtures. Apart from that, fixture execution 
-should operate in the usual way.
+The user can configure the DAG using two reserved fixtures for this. The
+fixtures must be scoped at the ``session`` level and its location should cover
+all the collected test items. The most narrow fixture that covers all of the
+collected items will be selected. Otherwise, the plugin uses default values for
+those fixtures. Apart from that, fixture execution and discovery should operate
+in the usual way.
 
-The first fixture is ``dag_default_args``, which should return 
-a dictionary with ``default_args`` that will be passed to the dag 
+The first fixture is ``dag_default_args``, which should return
+a dictionary with ``default_args`` that will be passed to the dag
 initialization. The default returns
 
 .. code-block:: python
@@ -130,8 +130,8 @@ initialization. The default returns
         "depends_on_past": False,
       }
 
-The second fixture is ``dag`` which should return an Airflow DAG that will 
-be used throughout the script. 
+The second fixture is ``dag`` which should return an Airflow DAG that will
+be used throughout the script.
 
-If the user desires only to modify the name of the DAG, it is possible to 
+If the user desires only to modify the name of the DAG, it is possible to
 simply pass the ``--dag-id`` flag to the ``pytest`` cmdline.
