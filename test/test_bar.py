@@ -2,6 +2,16 @@ import pytest
 import logging
 
 
+@pytest.fixture(scope="session")
+def dag_default_args():
+    yield {
+        "owner": "airflow",
+        "start_date": datetime.datetime(2017, 1, 1),
+        "depends_on_past": False,
+    }
+    print("finishing dag_default_args 2")
+
+
 @pytest.fixture()
 def fix_func():
     x = 1

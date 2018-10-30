@@ -28,6 +28,7 @@ def fix_bleh():
     logging.info("deferred final bleh")
 
 
+@pytest.mark.webtest
 def test_foo(fix_func, defer_fix_bar, fix_bleh):
     logging.info("here")
     logging.info(fix_func)
@@ -36,6 +37,7 @@ def test_foo(fix_func, defer_fix_bar, fix_bleh):
     assert 1
 
 
+@pytest.mark.blue
 def test_foo_foo(fix_bleh):
     assert 1
     logging.info(fix_bleh)
