@@ -34,8 +34,8 @@ the script above in one's DAG folder is enough to trigger the DAG. Note
 that ``pytest`` will be evaluated from the path where the Airflow 
 scheduler is invoked.
 
-Rationality
------------
+Plugin
+------
 
 The plugin creates a DAG of the form ``branch -> tests -> report``,
 ``branch`` marks tests that will be executed and skipped, ``tests``
@@ -60,7 +60,7 @@ following configuration keys:
   ``-m`` flag operates when collecting tests with ``pytest``.
 
 * ``keywords``: a list of keywords, it filters tests in the same way as
-  the ``-k``` flag operates when collecting tests with ``pytest``.
+  the ``-k`` flag operates when collecting tests with ``pytest``.
 
 Fixtures
 ~~~~~~~~
