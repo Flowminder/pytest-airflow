@@ -5,7 +5,7 @@ import logging
 
 @pytest.fixture(scope="session")
 def dag_default_args():
-    print('dag_default_args 2')
+    print("dag_default_args 2")
     yield {
         "owner": "airflow",
         "start_date": datetime.datetime(2017, 1, 1),

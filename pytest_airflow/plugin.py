@@ -14,10 +14,7 @@ from _pytest.outcomes import TEST_OUTCOME
 from _pytest.mark.legacy import matchmark, matchkeyword
 
 from airflow import DAG
-from airflow.operators.python_operator import (
-    PythonOperator,
-    SkipMixin,
-)
+from airflow.operators.python_operator import PythonOperator, SkipMixin
 
 #
 # CMDLINE
@@ -26,12 +23,14 @@ from airflow.operators.python_operator import (
 # value of the main function.
 #
 
+
 @pytest.hookimpl()
 def pytest_addoption(parser):
     """ Adds the pytest-airflow plugin cmdline options. """
     group = parser.getgroup("airflow")
     group.addoption("--airflow", action="store_true", help="run tests with airflow.")
     group.addoption("--dag-id", help="set the airflow dag id name.")
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_cmdline_main(config):
@@ -42,11 +41,13 @@ def pytest_cmdline_main(config):
         outcome = yield
         outcome.force_result(config._dag)
 
+
 #
 # FIXTURES
 # --------
 # Fallback plugin fixtures.
 #
+
 
 @pytest.fixture(autouse=True)
 def task_ctx():
@@ -54,14 +55,17 @@ def task_ctx():
     test is executed in Airflow. """
     return {}
 
+
 @pytest.fixture(scope="session")
 def dag_default_args():
     """ Return the default_args for a generic Airflow DAG. """
-    return { "owner": "airflow",
+    return {
+        "owner": "airflow",
         "start_date": datetime.datetime(2018, 1, 1),
         "end_date": None,
         "depends_on_past": False,
     }
+
 
 @pytest.fixture(scope="session")
 def dag(request, dag_default_args):
@@ -70,6 +74,7 @@ def dag(request, dag_default_args):
     dag_id = getattr(request.config.option, "dag_id") or "pytest"
     dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
     return dag
+
 
 @pytest.fixture(scope="session")
 def dag_report(**kwargs):
@@ -84,12 +89,14 @@ def dag_report(**kwargs):
         if longrepr:
             logging.info(longrepr)
 
+
 #
 # DAG INITIALIZATION
 # ------------------
 # Initializes the DAG after test items have been collected and are made
 # available for modification.
 #
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_collection_modifyitems(session, config, items):
@@ -225,6 +232,7 @@ class MultiBranchPythonOperator(PythonOperator, SkipMixin):
 def _pytest_branch_callable(items):
     """ Generates the callable for the MultiBranchPythonOperator taking into
     account the list of collected items. """
+
     def _callable(**kwargs):
 
         # we copy the items, as the list is modified by `pytest` throughout the
@@ -343,6 +351,7 @@ def pytest_fixture_setup(fixturedef, request):
 
         return deferred_call
 
+
 def _defer(fixturedef, request):
     """ Determines whether fixturedef should be deferred, based on whether it
     starts with `defer_`. """
@@ -361,7 +370,6 @@ def _defer(fixturedef, request):
 
 
 class FixtureDeferredCall:
-
     def __init__(self, fixturedef, request, kwargs):
         """ Convenient class for storing required pointers for fixture deferred
         exeution.
@@ -479,6 +487,7 @@ def pytest_pyfunc_call(pyfuncitem):
 
 def _task_callable(pyfuncitem, *testargs, **testkwargs):
     """ Prepares the PythonOperator callable based on the test function item. """
+
     def _callable(**kwargs):
 
         # update the task_ctx with the dag_run context
@@ -562,11 +571,13 @@ def _gen_task_id(item):
         id = id.replace(k, v)
     return id
 
+
 #
 # TERMINAL SUMMARY
 # ----------------
 # Adds plugin specific info to the terminal summary report.
 #
+
 
 @pytest.hookimpl()
 def pytest_terminal_summary(terminalreporter, exitstatus):
