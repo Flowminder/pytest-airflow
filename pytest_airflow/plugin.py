@@ -38,7 +38,11 @@ def pytest_cmdline_main(config):
     if config.option.airflow:
         # provides a pointer to the DAG generated during the course of the script.
         config._dag = None
-        outcome = yield
+
+    outcome = yield
+
+    if config.option.airflow:
+        # force the DAG pointer to return.
         outcome.force_result(config._dag)
 
 
