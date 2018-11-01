@@ -30,6 +30,14 @@ def fix_bleh():
     x = 10
     logging.info("deferred final bleh")
 
+@pytest.fixture()
+def defer_bleh(boo):
+    return boo
+
+
+@pytest.fixture()
+def boo(task_ctx):
+    return task_ctx["dag"]
 
 @pytest.mark.webtest
 def test_foo(fix_func, defer_fix_bar, fix_bleh):
@@ -41,6 +49,7 @@ def test_foo(fix_func, defer_fix_bar, fix_bleh):
 
 
 @pytest.mark.blue
-def test_foo_foo(fix_bleh):
+def test_foo_foo(fix_bleh, defer_bleh):
+    logging.info(f"{defer_bleh}")
     assert 1
     logging.info(fix_bleh)
