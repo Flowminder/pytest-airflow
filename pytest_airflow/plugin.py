@@ -162,7 +162,7 @@ def _init_dag(session):
 
 
 def _get_fixture(argname, session):
-    """ Get the fixture named after argname from the session. 
+    """ Get the fixture named after argname from the session.
 
     The fixture must be located at a nodeid that must be the parent of all the
     collected test items.  This is so, because the plugin will only construct a
@@ -364,7 +364,7 @@ def _defer(fixturedef, request):
     # we perform a recursive call to _defer in order to check if the fixture or
     # any of its dependencies need to be deferred in which case we defer the
     # fixture itself.
-    if fixturedef.argname.startswith("defer_"):
+    if fixturedef.argname.startswith("defer_") or fixturedef.argname == "task_ctx":
         return True
     for argname in fixturedef.argnames:
         fixdef = request._get_active_fixturedef(argname)
@@ -395,7 +395,7 @@ class FixtureDeferredCall:
         # to perfom any fixture teardown at this point
         fixturedef._finalizers = []
 
-    def execute(self):
+    def execute(self, task_ctx):
 
         if not self._cached:
 
@@ -405,7 +405,7 @@ class FixtureDeferredCall:
             # optimal performance.
             for k, arg in self.kwargs.items():
                 if isinstance(arg, FixtureDeferredCall):
-                    self.kwargs[k] = arg.execute()
+                    self.kwargs[k] = arg.execute(task_ctx)
 
             # this code is based on the pytest src code located in
             # src/_pytest/fixtures.py::call_fixture_func
@@ -424,6 +424,17 @@ class FixtureDeferredCall:
                 raise
             finally:
                 self._finalizers.extend(self._req._fixturedef._finalizers)
+
+            # update the task_ctx with the dag_run context
+            if self.argname == "task_ctx":
+                if isinstance(self._res, dict):
+                    self._res.update(task_ctx)
+                else:
+                    raise RuntimeError(
+                        f"task_ctx is a reserved fixture that must return a"
+                        f" dictionary, but in this case it has been mdofied by"
+                        f" the user and retuned a {type(self._res)} instead."
+                    )
 
             self._cached = True
 
@@ -494,16 +505,12 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
 
     def _callable(**kwargs):
 
-        # update the task_ctx with the dag_run context
-        if "task_ctx" in testkwargs:
-            testkwargs["task_ctx"].update(kwargs)
-
         # performs the deferred fixture calls, updates the testkwargs and
         # registers the associated finalizers for posterior terdown.
         finalizers = []
         for k, arg in testkwargs.items():
             if isinstance(arg, FixtureDeferredCall):
-                testkwargs[k] = arg.execute()
+                testkwargs[k] = arg.execute(kwargs)
                 finalizers.append(arg.finish)
 
         # retrieves the test function
