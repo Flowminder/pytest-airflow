@@ -80,11 +80,18 @@ In order to get around this problem there are two alternatives. The first
 alternative is to implement a fixture as a factory, and handling fixture
 teardown on the test itself.
 
-Alternatively, the plugin allows fixture deferred setup and teardown. In
-order to achieve deferred execution, one needs to prefix the name of the
-fixture with ``defer_``. That will request the plugin to defer its
-execution until the DAG is run. Fixtures that depend on a deferred fixture
+Alternatively, the plugin allows deferred fixture setup and teardown. In
+order to achieve deferred execution, the name of the fixture must be
+prefixed with ``defer_`` or it must depend on the reserved fixture
+``task_ctx``. That means that the plugin defer the execution of such
+fixtures until the DAG is run. Fixtures that depend on a deferred fixture
 will also have its execution deferred for later.
+
+The reserved fixture ``task_ctx`` is always deferred. This fixture
+evaluates the Airflow task context and is available to the user when
+writting tests. Using this fixture, the user has access to all the items
+that would be available to ``kwargs`` when setting ``provide_context`` to
+``True`` when using the ``PythonOperator`` in Airflow.
 
 All in all, collection time fixture execution should be used for test
 parametrization, for generating expensive resources that can be made
