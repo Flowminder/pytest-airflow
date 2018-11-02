@@ -13,8 +13,6 @@ from _pytest._code.code import ExceptionInfo
 from _pytest.outcomes import TEST_OUTCOME
 from _pytest.mark.legacy import matchmark, matchkeyword
 
-from airflow.operators.python_operator import PythonOperator, SkipMixin
-
 #
 # CMDLINE
 # -------
@@ -120,6 +118,7 @@ def pytest_collection_modifyitems(session, config, items):
 
         # the source task, that will mark tasks to skip depending on the
         # dag_run context configuration values for "markers" and "Keywords"
+        from .operators import MultiBranchPythonOperator
         branch = MultiBranchPythonOperator(
             task_id="__pytest_branch",
             python_callable=_pytest_branch_callable(items),
@@ -130,6 +129,7 @@ def pytest_collection_modifyitems(session, config, items):
         # the sink task, that perfoms test reporting.
         dag_report_callable = _get_fixture("dag_report", session).func
 
+        from airflow.operators.python_operator import PythonOperator
         report = PythonOperator(
             task_id="__pytest_report",
             python_callable=dag_report_callable,
@@ -210,29 +210,6 @@ def _compute_fixture_value(fixturedef, session):
     # we compute here
     request._fixture_defs[fixturedef.argname] = fixturedef
     return res
-
-
-class MultiBranchPythonOperator(PythonOperator, SkipMixin):
-    """ Follow multiple branches.
-
-    The default :py:class:`BranchPythonOperator` will expect a callable that
-    returns a single task, here we want to return a list of multiple tasks that
-    will be executed. All the others are marked to skip.
-    """
-
-    def execute(self, context):
-        branch = super(MultiBranchPythonOperator, self).execute(context)
-        self.log.info("Following branch %s", branch)
-        self.log.info("Marking other directly downstream tasks as skipped")
-
-        downstream_tasks = context["task"].downstream_list
-        self.log.debug("Downstream task_ids %s", downstream_tasks)
-
-        skip_tasks = [t for t in downstream_tasks if t.task_id not in branch]
-        if downstream_tasks:
-            self.skip(context["dag_run"], context["ti"].execution_date, skip_tasks)
-
-        self.log.info("Done.")
 
 
 def _pytest_branch_callable(items):
@@ -468,6 +445,7 @@ def pytest_pyfunc_call(pyfuncitem):
     # this code is based on the pytest src code located in
     # src/_pytest/python.py::pytest_pyfunc_call
     if pyfuncitem.session.config.option.airflow:
+        from airflow.operators.python_operator import PythonOperator
         dag = pyfuncitem.session.config._dag
         task_id = _gen_task_id(pyfuncitem)
         if pyfuncitem._isyieldedfunction():
