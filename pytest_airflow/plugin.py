@@ -578,9 +578,10 @@ def pytest_terminal_summary(terminalreporter, exitstatus):
         dag = terminalreporter.config._dag
         if dag:
             terminalreporter.write_line(f"DAG: {dag.dag_id}")
-            for t in dag.roots:
-                _branch_repr(terminalreporter, t)
-            terminalreporter.write_line("")
+            if terminalreporter.config.option.verbose >= 0:
+                for t in dag.roots:
+                    _branch_repr(terminalreporter, t)
+                terminalreporter.write_line("")
         else:
             terminalreporter.write_line("Didn't get DAG.")
 
