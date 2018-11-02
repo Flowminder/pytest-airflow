@@ -13,7 +13,6 @@ from _pytest._code.code import ExceptionInfo
 from _pytest.outcomes import TEST_OUTCOME
 from _pytest.mark.legacy import matchmark, matchkeyword
 
-from airflow import DAG
 from airflow.operators.python_operator import PythonOperator, SkipMixin
 
 #
@@ -75,6 +74,9 @@ def dag_default_args():
 def dag(request, dag_default_args):
     """ Returns the default DAG according to the session configuration and the
     dag_default_args.  """
+    # only import DAG if the fixture is actually required, otherwise Airflow
+    # might raise an error if the user environment is not properly setup.
+    from airflow import DAG
     dag_id = getattr(request.config.option, "dag_id") or "pytest"
     dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
     return dag
