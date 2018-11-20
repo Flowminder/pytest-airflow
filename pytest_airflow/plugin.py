@@ -50,7 +50,7 @@ def pytest_cmdline_main(config):
 #
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture()
 def task_ctx():
     """ Returns a dictionary that is updated with the task context, when the
     test is executed in Airflow. """
