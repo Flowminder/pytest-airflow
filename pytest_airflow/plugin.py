@@ -27,6 +27,10 @@ def pytest_addoption(parser):
     group = parser.getgroup("airflow")
     group.addoption("--airflow", action="store_true", help="run tests with airflow.")
     group.addoption("--dag-id", help="set the airflow dag id name.")
+    group.addoption("--source", help="set the airflow source tak name.",
+            default="__pytest_source")
+    group.addoption("--sink", help="set the airflow sink task name.",
+            default="__pytest_sink")
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -68,6 +72,7 @@ def dag_default_args():
     }
 
 
+
 @pytest.fixture(scope="session")
 def dag(request, dag_default_args):
     """ Returns the default DAG according to the session configuration and the
@@ -78,7 +83,6 @@ def dag(request, dag_default_args):
     dag_id = getattr(request.config.option, "dag_id") or "pytest"
     dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
     return dag
-
 
 @pytest.fixture(scope="session")
 def dag_report(**kwargs):
@@ -120,7 +124,7 @@ def pytest_collection_modifyitems(session, config, items):
         # dag_run context configuration values for "markers" and "Keywords"
         from .operators import MultiBranchPythonOperator
         branch = MultiBranchPythonOperator(
-            task_id="__pytest_branch",
+            task_id=session.config.option.source,
             python_callable=_pytest_branch_callable(items),
             provide_context=True,
             dag=dag,
@@ -131,7 +135,7 @@ def pytest_collection_modifyitems(session, config, items):
 
         from airflow.operators.python_operator import PythonOperator
         report = PythonOperator(
-            task_id="__pytest_report",
+            task_id=session.config.option.sink,
             python_callable=dag_report_callable,
             provide_context=True,
             trigger_rule="all_done",
@@ -178,6 +182,24 @@ def _get_fixture(argname, session):
 
     # look for the requested fixturedefs in the fixturemanager
     fixs = session._fixturemanager._arg2fixturedefs.get(argname, [])
+
+    # we first want to make sure that the fixtures registered in this plugin
+    # are read only at the end in case the user or no other plugin registered
+    # fixtures with the same name meant for use instead of the default fixtures
+    # defined here.
+    for i, fix in enumerate(fixs):
+        # is the fixture function defined in the same file as this one?
+        # then it must be the default fixture.
+        # pytest does not record the location of fixtures registered through
+        # plugin, that is the reason why we have to inspect the obejct
+        if fix.func.__globals__["__name__"] != __name__ :
+            continue
+        # if the fixture is not at the top of the list, let's put it there.  we
+        # modify the list just before we break the loop, so there should be no
+        # risk to modifying the list in the loop itself.
+        del fixs[i]
+        fixs.insert(0, fix)
+        break
 
     # loop through the reversed list of fixtures (so, from the more narrow
     # location to the more broad), the first fixture that encompasses all the
@@ -475,8 +497,8 @@ def pytest_pyfunc_call(pyfuncitem):
             )
         # set task dependencies to the branching and reporting tasks upstream
         # and downstream respectively.
-        dag.set_dependency("__pytest_branch", task_id)
-        dag.set_dependency(task_id, "__pytest_report")
+        dag.set_dependency(pyfuncitem.session.config.option.source, task_id)
+        dag.set_dependency(task_id, pyfuncitem.session.config.option.sink)
         return True
 
 
