@@ -29,6 +29,17 @@ return a reference to the DAG.
         import pytest
         dag = pytest.main(["--airflow", "--dag-id", "FOO"])
 
+The plugin generates two tasks at the start and end of the workflow which
+represent the source and sink for the tests. The source task is
+responsible for branching and the sink task for reporting. The former and
+the later are called ``__pytest_source`` and ``__pytest_sink`` by default
+respectively. In case the user desire to change those defaults name it is 
+possible to make use of the ``source`` and ``sink`` flags as below.
+
+.. code-block:: bash
+
+   $ pytest --airflow --source branch --sink report
+
 If the plugin is installed, ``pytest`` will automatically use it. Saving
 the script above in one's DAG folder is enough to trigger the DAG. Note
 that ``pytest`` will be evaluated from the path where the Airflow
@@ -37,9 +48,9 @@ scheduler is invoked.
 Plugin
 ------
 
-The plugin creates a DAG of the form ``branch -> tests -> report``,
-``branch`` marks tests that will be executed and skipped, ``tests``
-executes the selected tests as separate tasks and ``report`` reports test
+The plugin creates a DAG of the form ``source -> tests -> sink``,
+``source`` marks tests that will be executed and skipped, ``tests``
+executes the selected tests as separate tasks and ``sink`` reports test
 outcome.
 
 Branching
@@ -47,14 +58,14 @@ Branching
 
 Airflow requires that any DAG be completely defined before it is run. So
 by the nature of Airflow, we cannot use ``pytest`` to collect tests on the
-fly based on the results of ``branch``. Rather, ``pytest`` is used to
-generate the set of all possible desired tests before ``branch`` is
+fly based on the results of ``source``. Rather, ``pytest`` is used to
+generate the set of all possible desired tests before ``source`` is
 evaluated. The user can use all of the available flags to ``pytest`` (eg.
 ``-m``, ``-k``, paths) to narrow the set of initial desired tests down.
 
-The plugin makes a source task called ``branch`` available. This task
-allows skipping unwanted tests for a particular DAG run using the
-following configuration keys:
+The plugin makes a source task called ``__pytest_source`` by default
+available. This task allows skipping unwanted tests for a particular DAG
+run using the following configuration keys:
 
 * ``marks``: a list of marks, it filters tests in the same way as the
   ``-m`` flag operates when collecting tests with ``pytest``.
@@ -142,3 +153,27 @@ be used throughout the script.
 
 If the user desires only to modify the name of the DAG, it is possible to
 simply pass the ``--dag-id`` flag to the ``pytest`` cmdline.
+
+If the user desires to integrate the DAG generated from this plugin in
+her/his own DAG. One option is to define the whole DAG inside the same
+``conftest.py`` file that is used by ``pytest`` to initialize the tests.
+If this is not possible and the DAG must be defined separately, it is
+possible to create a custom ``pytest`` plugin in the same file where the
+DAG is created and pass such plugin to ``pytest.main`` as the example
+below illustrates.
+
+.. code-block:: python
+
+        import pytest
+        from airflow import DAG
+
+        my_dag = DAG(dag_id="foo", start_date = "2017-01-01")
+
+        class MyPlugin:
+
+          @pytest.fixture(scope="session")
+          def dag(self):
+            return my_dag
+
+        dag = pytest.main(["--airflow"], plugins=[MyPlugin()])
+
