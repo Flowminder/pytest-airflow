@@ -11,5 +11,8 @@ class MyPlugin:
         print("CUSTOM DAG")
         return test_dag
 
-pytest.main(["--airflow"], plugins=[MyPlugin()])
+_, source, sink = pytest.main(["--airflow"], plugins=[MyPlugin()])
+
+print(source)
+print(sink)
 
