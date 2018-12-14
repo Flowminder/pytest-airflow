@@ -27,7 +27,7 @@ return a reference to the DAG.
 .. code-block:: python
 
         import pytest
-        dag = pytest.main(["--airflow", "--dag-id", "FOO"])
+        dag, source, sink  = pytest.main(["--airflow", "--dag-id", "FOO"])
 
 The plugin generates two tasks at the start and end of the workflow which
 represent the source and sink for the tests. The source task is
@@ -175,5 +175,5 @@ below illustrates.
           def dag(self):
             return my_dag
 
-        dag = pytest.main(["--airflow"], plugins=[MyPlugin()])
+        my_dag, source, sink = pytest.main(["--airflow"], plugins=[MyPlugin()])
 
