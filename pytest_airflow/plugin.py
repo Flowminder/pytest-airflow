@@ -43,8 +43,10 @@ def pytest_cmdline_main(config):
     outcome = yield
 
     if config.option.airflow:
+        source = config._dag.task_dict[config.option.source]
+        sink = config._dag.task_dict[config.option.sink]
         # force the DAG pointer to return.
-        outcome.force_result(config._dag)
+        outcome.force_result((config._dag, source, sink))
 
 
 #
