@@ -34,7 +34,6 @@ def fix_bleh():
 def defer_bleh(boo):
     return boo
 
-
 @pytest.fixture()
 def boo(task_ctx):
     return task_ctx["dag"]
@@ -47,9 +46,14 @@ def test_foo(fix_func, defer_fix_bar, fix_bleh):
     logging.info(fix_bleh)
     assert 1
 
-
 @pytest.mark.blue
 def test_foo_foo(fix_bleh, defer_bleh):
+    logging.info(f"{defer_bleh}")
+    assert 1
+    logging.info(fix_bleh)
+
+def test_skip(fix_bleh, defer_bleh):
+    pytest.skip("This should skip.")
     logging.info(f"{defer_bleh}")
     assert 1
     logging.info(fix_bleh)
