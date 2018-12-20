@@ -10,7 +10,7 @@ import _pytest.nodes as nodes
 import _pytest.fixtures as fixtures
 
 from _pytest._code.code import ExceptionInfo
-from _pytest.outcomes import TEST_OUTCOME
+from _pytest.outcomes import Skipped, TEST_OUTCOME
 from _pytest.mark.legacy import matchmark, matchkeyword
 
 #
@@ -42,7 +42,7 @@ def pytest_cmdline_main(config):
 
     outcome = yield
 
-    if config.option.airflow:
+    if config.option.airflow and config._dag:
         source = config._dag.task_dict[config.option.source]
         sink = config._dag.task_dict[config.option.sink]
         # force the DAG pointer to return.
@@ -531,7 +531,7 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
                 testfunction(*testargs)
             else:
                 testfunction(**testkwargs)
-        except:
+        except TEST_OUTCOME:
             # Store trace info to allow postmortem debugging
             type, value, tb = sys.exc_info()
             tb = tb.tb_next  # Skip *this* frame
@@ -546,9 +546,16 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
 
         # communicate test outcomes to the xcom channel, making it accessible
         # to the reporting task downstream
+        skip = False
         if exceptions:
-            kwargs["ti"].xcom_push("outcome", "failed")
-            kwargs["ti"].xcom_push("longrepr", exceptions[0].getrepr(style="short"))
+            if exceptions[0].errisinstance(Skipped):
+                kwargs["ti"].xcom_push("outcome", "skipped")
+                kwargs["ti"].xcom_push("longrepr",
+                    exceptions[0].getrepr(style="short"))
+            else:
+                kwargs["ti"].xcom_push("outcome", "failed")
+                kwargs["ti"].xcom_push("longrepr",
+                    exceptions[0].getrepr(style="short"))
         else:
             kwargs["ti"].xcom_push("outcome", "passed")
             kwargs["ti"].xcom_push("longrepr", None)
@@ -567,8 +574,10 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
 
         # after attempting to perform all required finalization, raise the
         # first exception if any from the exceptions stack.
-        if exceptions:
-            e = exceptions[0]
+        while len(exceptions):
+            e = exceptions.pop(0)
+            if e.errisinstance(Skipped):
+                continue
             del exceptions
             if isinstance(e, ExceptionInfo):
                 six.reraise(e.type, e.value, e.tb)
