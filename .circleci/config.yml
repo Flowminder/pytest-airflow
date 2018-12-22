@@ -32,10 +32,10 @@ jobs:
       - restore_cache:
           key: deps4-{{ checksum "Pipfile.lock"}}
       - run:
-          name: install plugin
+          name: Install plugin
           command: pipenv run pip install .
       - run:
-          name: run tests
+          name: Run tests
           command: pipenv run pytest --junit-xml=test_results/pytest/results.xml
       - store_test_results:
           path: test_results
