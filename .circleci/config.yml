@@ -42,5 +42,5 @@ workflows:
     jobs:
       - install_dependencies
       - run_tests:
-        - requires:
+        requires:
           - install_dependencies
