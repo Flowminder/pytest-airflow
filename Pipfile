@@ -7,4 +7,6 @@ name = "pypi"
 "e1839a8" = {path = ".", editable = true}
 black = "==18.9b0"
 
+[requires]
+python_version = "3.6.6"
 
