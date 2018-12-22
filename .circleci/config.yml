@@ -17,7 +17,7 @@ jobs:
           command: cd /opt/circleci/.pyenv/plugins/python-build/../.. && git pull
       - run:
           name: Install dependencies
-          command: pyenv install -s $PYENV_VERSION && pip install pipenv && pipenv install --dev --deploy && pipenv run pip install -e .
+          command: pyenv install -s $PYENV_VERSION && pip install pipenv && pipenv install --dev --deploy
       - save_cache:
           key: deps4-{{ checksum "Pipfile.lock"}}
           paths:
@@ -31,6 +31,9 @@ jobs:
       - checkout
       - restore_cache:
           key: deps4-{{ checksum "Pipfile.lock"}}
+      - run:
+          name: install plugin
+          command: pipenv run pip install .
       - run:
           name: run tests
           command: pipenv run pytest --junit-xml=test_results/pytest/results.xml
