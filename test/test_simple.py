@@ -75,3 +75,54 @@ def test_deferred_task_execution(testdir, simple_testdir, mock_context):
         tasks["test_foo.py-test_fails"].execute(mock_context)
     assert mock_context["ti"].xcom["outcome"] == "failed"
     assert isinstance(mock_context["ti"].xcom["longrepr"], ExceptionChainRepr)
+
+
+def test_task_dependencies(testdir, simple_testdir):
+    """ Test that all task dependencies are met. """
+    result = testdir.runpytest("--airflow")
+    dag, _, _ = result.ret
+
+    task_ids = [
+        "test_foo.py-test_succeeds",
+        "test_foo.py-test_fails",
+        "test_bar.py-test_succeeds",
+        "test_bar.py-test_fails",
+    ]
+
+    downstream = dag.task_dict["__pytest_source"].get_direct_relative_ids(
+        upstream=False
+    )
+    assert set(task_ids) == set(downstream)
+    upstream = dag.task_dict["__pytest_source"].get_direct_relative_ids(upstream=True)
+    assert set() == set(upstream)
+
+    downstream = dag.task_dict["__pytest_sink"].get_direct_relative_ids(upstream=False)
+    assert set() == set(upstream)
+    upstream = dag.task_dict["__pytest_sink"].get_direct_relative_ids(upstream=True)
+    assert set(task_ids) == set(upstream)
+
+    for id in task_ids:
+        task = dag.task_dict[id]
+        downstream = task.get_direct_relative_ids(upstream=False)
+        assert downstream == set(["__pytest_sink"])
+        upstream = task.get_direct_relative_ids(upstream=True)
+        assert upstream == set(["__pytest_source"])
+
+
+def test_skipped(testdir, mock_context):
+    """ Test that skipped tasks succeed and are passed to xcom correctly. """
+    testdir.makepyfile(
+        test_foo="""
+            import pytest
+
+            def test_skips():
+                pytest.skip("Skip this.")
+                assert 1
+            """
+    )
+    result = testdir.runpytest("--airflow")
+    dag, _, _ = result.ret
+
+    dag.task_dict["test_foo.py-test_skips"].execute(mock_context)
+    assert mock_context["ti"].xcom["outcome"] == "skipped"
+    assert isinstance(mock_context["ti"].xcom["longrepr"], ExceptionChainRepr)
