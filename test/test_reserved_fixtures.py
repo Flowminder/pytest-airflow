@@ -6,6 +6,7 @@ import logging
 import datetime
 from airflow.models import DAG
 
+
 def test_user_dag(testdir):
     """ Test that plugin selects user DAG. """
     testdir.makepyfile(
@@ -164,6 +165,7 @@ def test_fixture_must_be_session_scoped(testdir):
     result = testdir.runpytest("--airflow")
     dag, _, _ = result.ret
     assert dag.owner == "airflow"
+
 
 def test_fixture_from_plugin(testdir):
     """ Test that fixtures defined in other plugins take precedence. """
