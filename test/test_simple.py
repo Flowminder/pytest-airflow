@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Test the plugin in the context of a simple test directory structure. """
+""" Test the plugin in the context of a test directory structure without fixtures. """
 
 import pytest
 from _pytest._code.code import ExceptionChainRepr
