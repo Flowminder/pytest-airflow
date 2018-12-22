@@ -1,6 +1,9 @@
 pytest-airflow: pytest support for airflow
 ==========================================
 
+.. image:: https://circleci.com/gh/Flowminder/pytest-airflow.svg?style=svg&circle-token=7e32dee2ea47f7961e93b9016d44bda103b3bede
+    :target: https://circleci.com/gh/Flowminder/pytest-airflow
+
 ``pytest-airflow`` is a plugin for ``pytest`` that allows tests to be run
 within an Airflow DAG.
 
