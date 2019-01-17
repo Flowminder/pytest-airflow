@@ -27,10 +27,12 @@ def pytest_addoption(parser):
     group = parser.getgroup("airflow")
     group.addoption("--airflow", action="store_true", help="run tests with airflow.")
     group.addoption("--dag-id", help="set the airflow dag id name.")
-    group.addoption("--source", help="set the airflow source tak name.",
-            default="__pytest_source")
-    group.addoption("--sink", help="set the airflow sink task name.",
-            default="__pytest_sink")
+    group.addoption(
+        "--source", help="set the airflow source tak name.", default="__pytest_source"
+    )
+    group.addoption(
+        "--sink", help="set the airflow sink task name.", default="__pytest_sink"
+    )
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -74,7 +76,6 @@ def dag_default_args():
     }
 
 
-
 @pytest.fixture(scope="session")
 def dag(request, dag_default_args):
     """ Returns the default DAG according to the session configuration and the
@@ -82,9 +83,11 @@ def dag(request, dag_default_args):
     # only import DAG if the fixture is actually required, otherwise Airflow
     # might raise an error if the user environment is not properly setup.
     from airflow import DAG
+
     dag_id = getattr(request.config.option, "dag_id") or "pytest"
     dag = DAG(dag_id=dag_id, schedule_interval=None, default_args=dag_default_args)
     return dag
+
 
 @pytest.fixture(scope="session")
 def dag_report(**kwargs):
@@ -125,6 +128,7 @@ def pytest_collection_modifyitems(session, config, items):
         # the source task, that will mark tasks to skip depending on the
         # dag_run context configuration values for "markers" and "Keywords"
         from .operators import MultiBranchPythonOperator
+
         branch = MultiBranchPythonOperator(
             task_id=session.config.option.source,
             python_callable=_pytest_branch_callable(items),
@@ -136,6 +140,7 @@ def pytest_collection_modifyitems(session, config, items):
         dag_report_callable = _get_fixture("dag_report", session).func
 
         from airflow.operators.python_operator import PythonOperator
+
         report = PythonOperator(
             task_id=session.config.option.sink,
             python_callable=dag_report_callable,
@@ -194,7 +199,7 @@ def _get_fixture(argname, session):
         # then it must be the default fixture.
         # pytest does not record the location of fixtures registered through
         # plugin, that is the reason why we have to inspect the obejct
-        if fix.func.__globals__["__name__"] != __name__ :
+        if fix.func.__globals__["__name__"] != __name__:
             continue
         # if the fixture is not at the top of the list, let's put it there.  we
         # modify the list just before we break the loop, so there should be no
@@ -470,6 +475,7 @@ def pytest_pyfunc_call(pyfuncitem):
     # src/_pytest/python.py::pytest_pyfunc_call
     if pyfuncitem.session.config.option.airflow:
         from airflow.operators.python_operator import PythonOperator
+
         dag = pyfuncitem.session.config._dag
         task_id = _gen_task_id(pyfuncitem)
         if pyfuncitem._isyieldedfunction():
@@ -550,12 +556,10 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
         if exceptions:
             if exceptions[0].errisinstance(Skipped):
                 kwargs["ti"].xcom_push("outcome", "skipped")
-                kwargs["ti"].xcom_push("longrepr",
-                    exceptions[0].getrepr(style="short"))
+                kwargs["ti"].xcom_push("longrepr", exceptions[0].getrepr(style="short"))
             else:
                 kwargs["ti"].xcom_push("outcome", "failed")
-                kwargs["ti"].xcom_push("longrepr",
-                    exceptions[0].getrepr(style="short"))
+                kwargs["ti"].xcom_push("longrepr", exceptions[0].getrepr(style="short"))
         else:
             kwargs["ti"].xcom_push("outcome", "passed")
             kwargs["ti"].xcom_push("longrepr", None)

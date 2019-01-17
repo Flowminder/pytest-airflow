@@ -6,6 +6,7 @@ pytest without this plugin.
 """
 from airflow.operators.python_operator import PythonOperator, SkipMixin
 
+
 class MultiBranchPythonOperator(PythonOperator, SkipMixin):
     """ Follow multiple branches.
 
@@ -27,5 +28,3 @@ class MultiBranchPythonOperator(PythonOperator, SkipMixin):
             self.skip(context["dag_run"], context["ti"].execution_date, skip_tasks)
 
         self.log.info("Done.")
-
-

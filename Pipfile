@@ -1,0 +1,12 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+"e1839a8" = {path = ".", editable = true}
+black = "==18.9b0"
+pytest-airflow = {editable = true, path = "."}
+
+[requires]
+python_version = "3.6.6"

@@ -1,22 +1,21 @@
-
+# -*- coding: utf-8 -*-
 import pytest
-import logging
-import datetime
+
+pytest_plugins = ["pytester"]
 
 
-@pytest.fixture(scope="session")
-def owner():
-    yield "airflow"
-    # print("finishing owner")
+class MockTaskInstance:
+    """ This class mocks the Airflow TaskInstance class with the objective of
+    simulating xcom communication. """
+
+    def __init__(self):
+        self.xcom = {}
+
+    def xcom_push(self, key, val):
+        self.xcom[key] = val
 
 
-@pytest.fixture(scope="session")
-def dag_default_args(owner):
-    print("dag_default_args 1")
-    yield {
-        "owner": owner,
-        "start_date": datetime.datetime(2017, 1, 1),
-        "end_date": None,
-        "depends_on_past": False,
-    }
-    print("finishing dag_default_args")
+@pytest.fixture()
+def mock_context():
+    """ Creates a mock context for running deferred tests and fixtures. """
+    return {"ti": MockTaskInstance()}
