@@ -93,14 +93,22 @@ def dag(request, dag_default_args):
 def dag_report(**kwargs):
     """ The default callable for the report task. """
 
-    logging.info("Test results")
+    logging.info("Test results report.")
+
+    failed = 0
 
     for task in kwargs["task"].upstream_list:
         outcome = kwargs["ti"].xcom_pull(task.task_id, key="outcome")
-        longrepr = kwargs["ti"].xcom_pull(task.task_id, key="longrepr")
+        if outcome == "failed":
+            failed += 1
         logging.info(f"{task.task_id}: {outcome}")
+
+        longrepr = kwargs["ti"].xcom_pull(task.task_id, key="longrepr")
         if longrepr:
             logging.info(longrepr)
+
+    if failed > 0:
+        raise Exception(f"{failed} failed.")
 
 
 #
