@@ -187,3 +187,47 @@ def test_fixture_from_plugin(testdir):
     got, _, _ = result.ret
 
     assert want == got
+
+
+def test_default_dag_report_suceeds_when_all_suceed(testdir, mock_context, mock_object):
+
+    testdir.makepyfile(
+        test_foo="""
+        def test_succeeds():
+            assert 1
+        """
+    )
+    result = testdir.runpytest("--airflow")
+    _, _, report = result.ret
+
+    mock_context["ti"].xcom = {"test_succeeds": {"outcome": "passed"}}
+    mock_context["task"].upstream_list = [mock_object(task_id="test_succeeds")]
+    report.execute(mock_context)
+
+
+def test_default_dag_report_fails_when_any_test_fails(
+    testdir, mock_context, mock_object
+):
+
+    testdir.makepyfile(
+        test_foo="""
+        def test_succeeds():
+            assert 1
+
+        def test_fails():
+            assert 0
+        """
+    )
+    result = testdir.runpytest("--airflow")
+    _, _, report = result.ret
+
+    mock_context["ti"].xcom = {
+        "test_succeeds": {"outcome": "passed"},
+        "test_fails": {"outcome": "failed", "longrepr": "failed"},
+    }
+    mock_context["task"].upstream_list = [
+        mock_object(task_id="test_succeeds"),
+        mock_object(task_id="test_fails"),
+    ]
+    with pytest.raises(Exception):
+        report.execute(mock_context)
