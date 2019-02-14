@@ -553,7 +553,7 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
             sys.last_value = value
             sys.last_traceback = tb
             del type, value, tb  # Get rid of these in this frame
-            exceptions.append(ExceptionInfo())
+            exceptions.append(ExceptionInfo.from_current())
 
         for f in pyfuncitem.session._setupstate._finalizers.values():
             finalizers.extend(f)
