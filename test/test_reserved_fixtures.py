@@ -84,7 +84,7 @@ def test_user_dag_report(testdir, capsys, mock_context):
     result = testdir.runpytest("--airflow")
     _, _, sink = result.ret
 
-    sink.execute(mock_context)
+    sink.execute(mock_context())
     captured = capsys.readouterr()
     assert "Custom report." in captured.out
 
@@ -189,7 +189,8 @@ def test_fixture_from_plugin(testdir):
     assert want == got
 
 
-def test_default_dag_report_suceeds_when_all_suceed(testdir, mock_context, mock_object):
+def test_default_dag_report_suceeds_when_all_suceed(testdir, mock_context):
+    """ Test that the default report task succeed when all tests succeed. """
 
     testdir.makepyfile(
         test_foo="""
@@ -200,14 +201,13 @@ def test_default_dag_report_suceeds_when_all_suceed(testdir, mock_context, mock_
     result = testdir.runpytest("--airflow")
     _, _, report = result.ret
 
+    mock_context = mock_context(__pytest_source={"state": "SUCCESS"}, test_succeeds={"state":"SUCCESS"})
     mock_context["ti"].xcom = {"test_succeeds": {"outcome": "passed"}}
-    mock_context["task"].upstream_list = [mock_object(task_id="test_succeeds")]
     report.execute(mock_context)
 
 
-def test_default_dag_report_fails_when_any_test_fails(
-    testdir, mock_context, mock_object
-):
+def test_default_dag_report_fails_when_any_test_fails(testdir, mock_context):
+    """ Test that the default report task fails when at least one test fails. """
 
     testdir.makepyfile(
         test_foo="""
@@ -221,13 +221,56 @@ def test_default_dag_report_fails_when_any_test_fails(
     result = testdir.runpytest("--airflow")
     _, _, report = result.ret
 
+    mock_context = mock_context(__pytest_source={"state": "SUCCESS"}, test_succeeds={"state": "SUCCESS"}, test_fails={"state": "FAILED"})
     mock_context["ti"].xcom = {
         "test_succeeds": {"outcome": "passed"},
         "test_fails": {"outcome": "failed", "longrepr": "failed"},
     }
-    mock_context["task"].upstream_list = [
-        mock_object(task_id="test_succeeds"),
-        mock_object(task_id="test_fails"),
-    ]
     with pytest.raises(Exception):
         report.execute(mock_context)
+
+def test_default_dag_report_reports_non_completed_tasks(testdir, mock_context, caplog):
+    """ Test that the default report task logs tasks that did not complete according to Airflow state. """
+    testdir.makepyfile(
+        test_foo="""
+        def test_succeeds():
+            assert 1
+
+        def test_skipped_by_airflow():
+            assert 0
+        """
+    )
+    result = testdir.runpytest("--airflow")
+    _, _, report = result.ret
+
+    mock_context = mock_context(__pytest_source={"state": "SUCCESS"}, test_succeeds={"state": "SUCCESS"}, test_skipped_by_airflow={"state": "SKIPPED"})
+    mock_context["ti"].xcom = {
+        "test_succeeds": {"outcome": "passed"},
+    }
+    report.execute(mock_context)
+    assert caplog.record_tuples == [
+        ("root", logging.INFO, "Test results report."),
+        ("root", logging.INFO, "test_succeeds completed, pytest outcome: passed."),
+        ("root", logging.INFO, "test_skipped_by_airflow did not complete, task marked as: SKIPPED."),
+    ]
+
+def test_default_dag_report_state_follows_source_task_state(testdir, mock_context, caplog):
+    """ Test that the default report task state follows the source task state. """
+    testdir.makepyfile(
+        test_foo="""
+        def test_succeeds():
+            assert 1
+
+        def test_skipped_by_airflow():
+            assert 0
+        """
+    )
+    result = testdir.runpytest("--airflow")
+    _, _, report = result.ret
+
+    mock_context = mock_context(__pytest_source={"state": "UPSTREAM_FAILED"}, test_succeeds={"state": "UPSTREAM_FAILED"}, test_skipped_by_airflow={"state": "UPSTREAM_FAILED"})
+    with pytest.raises(Exception):
+        report.execute(mock_context)
+
+
+
