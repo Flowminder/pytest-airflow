@@ -1,3 +1,8 @@
+# exclude .env
+# this is excluded because the environment is different in deployment and development
+# use the correct environment by creating a symlink, eg. `ln -s .env-dev .env`
+.env
+
 # python scaffolding
 __pycache__/
 .eggs/
@@ -10,3 +15,7 @@ pytestdebug.log
 # docs
 docs/*.pdf
 docs/*.docx
+
+# ignore airflow scaffolding
+airflow/*
+!airflow/dags
