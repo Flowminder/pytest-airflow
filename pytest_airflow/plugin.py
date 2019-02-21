@@ -101,7 +101,7 @@ def dag_report(**kwargs):
     source_task_instance = kwargs["dag_run"].get_task_instance(source_task.task_id)
     source_state = source_task_instance.current_state()
 
-    if source_state not in {"SUCCESS"}:
+    if source_state.upper() not in {"SUCCESS"}:
         raise Exception(f"{source_task.task_id} was marked as {source_state}, failing this task.")
 
     for task in kwargs["task"].upstream_list:
