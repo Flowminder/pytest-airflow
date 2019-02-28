@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 """Custom airflow operators.
 
 Airflow should only be imported when required in order to avoid raising runtime
