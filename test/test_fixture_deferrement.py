@@ -32,7 +32,7 @@ def test_not_deferred(testdir, caplog, mock_context):
     caplog.clear()
 
     dag, _, _ = result.ret
-    dag.task_dict["test_foo.py-test_foo"].execute(mock_context)
+    dag.task_dict["test_foo.py-test_foo"].execute(mock_context())
     assert caplog.record_tuples == [("root", logging.INFO, "Running test.")]
 
 
@@ -59,7 +59,7 @@ def test_defer_with_yield(testdir, caplog, mock_context):
     caplog.clear()
 
     dag, _, _ = result.ret
-    dag.task_dict["test_foo.py-test_foo"].execute(mock_context)
+    dag.task_dict["test_foo.py-test_foo"].execute(mock_context())
     assert caplog.record_tuples == [
         ("root", logging.INFO, "Executing the deferred call for defer_fixture"),
         ("root", logging.INFO, "Initializing fixture."),
@@ -92,7 +92,7 @@ def test_defer_with_return(testdir, caplog, mock_context):
     caplog.clear()
 
     dag, _, _ = result.ret
-    dag.task_dict["test_foo.py-test_foo"].execute(mock_context)
+    dag.task_dict["test_foo.py-test_foo"].execute(mock_context())
     assert caplog.record_tuples == [
         ("root", logging.INFO, "Executing the deferred call for defer_fixture"),
         ("root", logging.INFO, "Initializing fixture."),
@@ -132,7 +132,7 @@ def test_fixture_depends_on_deferred(testdir, caplog, mock_context):
     caplog.clear()
 
     dag, _, _ = result.ret
-    dag.task_dict["test_foo.py-test_foo"].execute(mock_context)
+    dag.task_dict["test_foo.py-test_foo"].execute(mock_context())
     print(caplog.record_tuples)
     assert caplog.record_tuples == [
         ("root", logging.INFO, "Executing the deferred call for simple_fixture"),
@@ -167,7 +167,7 @@ def test_task_ctx_deferred(testdir, caplog, mock_context):
     caplog.clear()
 
     dag, _, _ = result.ret
-    dag.task_dict["test_foo.py-test_foo"].execute(mock_context)
+    dag.task_dict["test_foo.py-test_foo"].execute(mock_context())
     assert caplog.record_tuples == [
         ("root", logging.INFO, "Executing the deferred call for task_ctx"),
         ("root", logging.INFO, "Initializing fixture."),

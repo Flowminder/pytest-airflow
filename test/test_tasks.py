@@ -68,6 +68,7 @@ def test_deferred_task_execution(testdir, simple_testdir, mock_context):
     dag, _, _ = result.ret
     tasks = dag.task_dict
 
+    mock_context = mock_context()
     tasks["test_foo.py-test_succeeds"].execute(mock_context)
     assert mock_context["ti"].xcom == {"outcome": "passed", "longrepr": None}
 
@@ -123,6 +124,7 @@ def test_skipped(testdir, mock_context):
     result = testdir.runpytest("--airflow")
     dag, _, _ = result.ret
 
+    mock_context = mock_context()
     dag.task_dict["test_foo.py-test_skips"].execute(mock_context)
     assert mock_context["ti"].xcom["outcome"] == "skipped"
     assert isinstance(mock_context["ti"].xcom["longrepr"], ExceptionChainRepr)

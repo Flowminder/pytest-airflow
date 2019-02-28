@@ -97,12 +97,23 @@ def dag_report(**kwargs):
 
     failed = 0
 
+    source_task = kwargs["task"].upstream_list[0].upstream_list[0]
+    source_task_instance = kwargs["dag_run"].get_task_instance(source_task.task_id)
+    source_state = source_task_instance.current_state()
+
+    if source_state.upper() not in {"SUCCESS"}:
+        raise Exception(f"{source_task.task_id} was marked as {source_state}, failing this task.")
+
     for task in kwargs["task"].upstream_list:
         outcome = kwargs["ti"].xcom_pull(task.task_id, key="outcome")
-        if outcome == "failed":
+        if outcome is None:
+            task_instance = kwargs["dag_run"].get_task_instance(task.task_id)
+            task_state = task_instance.current_state()
+            logging.info(f"{task.task_id} did not complete, task marked as: {task_state}.")
+            continue
+        elif outcome == "failed":
             failed += 1
-        logging.info(f"{task.task_id}: {outcome}")
-
+        logging.info(f"{task.task_id} completed, pytest outcome: {outcome}.")
         longrepr = kwargs["ti"].xcom_pull(task.task_id, key="longrepr")
         if longrepr:
             logging.info(longrepr)
@@ -134,7 +145,7 @@ def pytest_collection_modifyitems(session, config, items):
         session.config._dag = dag
 
         # the source task, that will mark tasks to skip depending on the
-        # dag_run context configuration values for "markers" and "Keywords"
+        # dag_run context configuration values for "markers" and "keywords"
         from .operators import MultiBranchPythonOperator
 
         branch = MultiBranchPythonOperator(
@@ -560,7 +571,6 @@ def _task_callable(pyfuncitem, *testargs, **testkwargs):
 
         # communicate test outcomes to the xcom channel, making it accessible
         # to the reporting task downstream
-        skip = False
         if exceptions:
             if exceptions[0].errisinstance(Skipped):
                 kwargs["ti"].xcom_push("outcome", "skipped")
