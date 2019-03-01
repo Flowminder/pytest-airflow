@@ -10,6 +10,8 @@
 # python scaffolding
 __pycache__/
 .eggs/
+build/
+dist/
 *.egg-info/
 *.egg/
 
@@ -23,3 +25,6 @@ docs/*.docx
 # ignore airflow scaffolding
 airflow/*
 !airflow/dags
+
+# editor
+.vscode/
