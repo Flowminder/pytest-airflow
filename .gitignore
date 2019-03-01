@@ -21,3 +21,6 @@ docs/*.docx
 # ignore airflow scaffolding
 airflow/*
 !airflow/dags
+
+# editor
+.vscode/
