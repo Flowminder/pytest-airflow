@@ -1,0 +1,2 @@
+include versioneer.py
+include pytest_airflow/_version.py
