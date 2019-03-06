@@ -51,6 +51,12 @@ jobs:
       - checkout
       - restore_cache:
           key: deps4-{{ checksum "Pipfile.lock"}}
+       - run:
+          name: init .pypirc
+          command: |
+            echo -e "[pypi]" >> ~/.pypirc
+            echo -e "username = $TWINE_USERNAME" >> ~/.pypirc
+            echo -e "password = $TWINE_PASSWORD" >> ~/.pypirc
       - run:
           name: Build packages
           command: |
@@ -60,7 +66,7 @@ jobs:
           name: Upload to TestPyPI
           command: |
             pipenv run pip install twine
-            pipenv run twine upload --verbose --repository-url https://test.pypi.org/legacy/ dist/*
+            pipenv run twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 workflows:
   version: 2
   test:
@@ -73,3 +79,8 @@ workflows:
           requires:
             - run_tests
           context: org-global
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
