@@ -60,7 +60,7 @@ jobs:
           name: Upload to TestPyPI
           command: |
             pipenv run pip install twine
-            pipenv run twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+            pipenv run twine upload -v --repository-url https://test.pypi.org/legacy/ dist/*
 workflows:
   version: 2
   test:
