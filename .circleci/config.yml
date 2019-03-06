@@ -51,7 +51,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps4-{{ checksum "Pipfile.lock"}}
-       - run:
+      - run:
           name: init .pypirc
           command: |
             echo -e "[pypi]" >> ~/.pypirc
