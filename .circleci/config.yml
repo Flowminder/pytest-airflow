@@ -72,5 +72,4 @@ workflows:
       - deploy:
           requires:
             - run_tests
-          context:
-            - org-global
+          context: org-global
