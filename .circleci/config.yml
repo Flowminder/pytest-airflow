@@ -54,8 +54,8 @@ jobs:
       - run:
           name: Build packages
           command: |
-            python setup.py sdist
-            python setup.py bdist_wheel
+            pipenv run python setup.py sdist
+            pipenv run python setup.py bdist_wheel
       - run:
           name: Upload to TestPyPI
           command: |
