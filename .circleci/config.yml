@@ -43,6 +43,24 @@ jobs:
           command: pipenv run pytest --junit-xml=test_results/pytest/results.xml
       - store_test_results:
           path: test_results
+  deploy:
+    machine: true
+    environment:
+      PYENV_VERSION: 3.6.6
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps4-{{ checksum "Pipfile.lock"}}
+      - run:
+          name: Build packages
+          command: |
+            python setup.py sdist
+            python setup.py bdist_wheel
+      - run:
+          name: Upload to TestPyPI
+          command: |
+            pipenv install twine
+            pipenv run twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 workflows:
   version: 2
   test:
@@ -51,3 +69,8 @@ workflows:
       - run_tests:
           requires:
             - install_dependencies
+      - deploy:
+          requires:
+            - run_tests
+          context:
+            - org-global
