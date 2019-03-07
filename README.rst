@@ -22,11 +22,13 @@ Installation
 
     pip install pytest-airflow
 
-.. note::
-    ``pytest-airflow`` depends on Apache Airflow, which requires
-    ``export SLUGIFY_USES_TEXT_UNIDECODE=yes`` to be specified before install.
-    See the `Airflow install instructions <https://airflow.apache.org/installation.html>`_
-    for background on this requirement.
+Note
+~~~~
+
+``pytest-airflow`` depends on Apache Airflow, which requires
+``export SLUGIFY_USES_TEXT_UNIDECODE=yes`` to be specified before install. See
+the `Airflow install instructions <https://airflow.apache.org/installation.html>`_
+for background on this requirement.
 
 Usage
 -----
