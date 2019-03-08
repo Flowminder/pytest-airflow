@@ -43,11 +43,50 @@ jobs:
           command: pipenv run pytest --junit-xml=test_results/pytest/results.xml
       - store_test_results:
           path: test_results
+  deploy:
+    machine: true
+    environment:
+      PYENV_VERSION: 3.6.6
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps4-{{ checksum "Pipfile.lock"}}
+      - run:
+          name: init .pypirc
+          command: |
+            echo -e "[pypi]" >> ~/.pypirc
+            echo -e "username = $TWINE_USERNAME" >> ~/.pypirc
+            echo -e "password = $TWINE_PASSWORD" >> ~/.pypirc
+      - run:
+          name: Build packages
+          command: |
+            pipenv run python setup.py sdist
+            pipenv run python setup.py bdist_wheel
+      - run:
+          name: Upload to TestPyPI
+          command: |
+            pipenv run pip install twine
+            pipenv run twine upload dist/*
 workflows:
   version: 2
   test:
     jobs:
-      - install_dependencies
+      - install_dependencies:
+          filters:
+            tags:
+              only: /.*/
       - run_tests:
           requires:
             - install_dependencies
+          filters:
+            tags:
+              only: /.*/
+      - deploy:
+          requires:
+            - run_tests
+          context: org-global
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/

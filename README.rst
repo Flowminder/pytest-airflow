@@ -13,6 +13,23 @@ parametrization, fixtures and marks. The generated test callables tests
 are eventually passed to ``PythonOperators`` that are run as separate
 Airflow tasks.
 
+Installation
+------------
+
+``pytest-airflow`` can be installed with ``pip``:
+
+.. code-block:: bash
+
+    pip install pytest-airflow
+
+Note
+~~~~
+
+``pytest-airflow`` depends on Apache Airflow, which requires
+``export SLUGIFY_USES_TEXT_UNIDECODE=yes`` to be specified before install. See
+the `Airflow install instructions <https://airflow.apache.org/installation.html>`_
+for background on this requirement.
+
 Usage
 -----
 
