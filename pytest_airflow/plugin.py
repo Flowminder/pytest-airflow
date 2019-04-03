@@ -7,6 +7,7 @@
 """pytest-airflow implementation."""
 import sys
 import six
+import inspect
 import logging
 import datetime
 import functools
@@ -18,6 +19,8 @@ import _pytest.fixtures as fixtures
 from _pytest._code.code import ExceptionInfo
 from _pytest.outcomes import Skipped, TEST_OUTCOME
 from _pytest.mark.legacy import matchmark, matchkeyword
+from _pytest.warning_types import PytestWarning
+
 
 #
 # CMDLINE
@@ -500,38 +503,41 @@ def pytest_pyfunc_call(pyfuncitem):
     # src/_pytest/python.py::pytest_pyfunc_call
     if pyfuncitem.session.config.option.airflow:
         from airflow.operators.python_operator import PythonOperator
-
         dag = pyfuncitem.session.config._dag
         task_id = _gen_task_id(pyfuncitem)
-        if pyfuncitem._isyieldedfunction():
-            # in pytest we would call the actual test function at this
-            # location, instead we create an Airflow task.
-            task = PythonOperator(
-                task_id=task_id,
-                python_callable=_task_callable(pyfuncitem, *pyfuncitem._args),
-                provide_context=True,
-                dag=dag,
-            )
-        else:
-            funcargs = pyfuncitem.funcargs
-            testkwargs = {}
-            for arg in pyfuncitem._fixtureinfo.argnames:
-                # we ignore these fixtures which are only used for initializing
-                # the DAG and should not be used during test execution.
-                if not arg in ("dag", "dag_default_args", "dag_report"):
-                    testkwargs[arg] = funcargs[arg]
-            # in pytest we would call the actual test function at this
-            # location, instead we create an Airflow task.
-            task = PythonOperator(
-                task_id=task_id,
-                python_callable=_task_callable(pyfuncitem, **testkwargs),
-                provide_context=True,
-                dag=dag,
-            )
+
+        iscoroutinefunction = getattr(inspect, "iscoroutinefunction", None)
+        if iscoroutinefunction is not None and iscoroutinefunction(pyfuncitem.obj):
+            msg = "Coroutine functions are not natively supported and have been skipped.\n"
+            msg += "You need to install a suitable plugin for your async framework, for example:\n"
+            msg += "  - pytest-asyncio\n"
+            msg += "  - pytest-trio\n"
+            msg += "  - pytest-tornasync"
+            warnings.warn(PytestWarning(msg.format(pyfuncitem.nodeid)))
+            skip(msg="coroutine function and no async plugin installed (see warnings)")
+
+        funcargs = pyfuncitem.funcargs
+        testkwargs = {}
+        for arg in pyfuncitem._fixtureinfo.argnames:
+            # we ignore these fixtures which are only used for initializing
+            # the DAG and should not be used during test execution.
+            if not arg in ("dag", "dag_default_args", "dag_report"):
+                testkwargs[arg] = funcargs[arg]
+
+        # in pytest we would call the actual test function at this
+        # location, instead we create an Airflow task.
+        task = PythonOperator(
+            task_id=task_id,
+            python_callable=_task_callable(pyfuncitem, **testkwargs),
+            provide_context=True,
+            dag=dag,
+        )
+
         # set task dependencies to the branching and reporting tasks upstream
         # and downstream respectively.
         dag.set_dependency(pyfuncitem.session.config.option.source, task_id)
         dag.set_dependency(task_id, pyfuncitem.session.config.option.sink)
+
         return True
 
 
